@@ -2,7 +2,6 @@ package main
 
 import (
 	"log"
-	"strings"
 	"time"
 
 	"gopkg.in/telebot.v3"
@@ -28,6 +27,8 @@ func NewApp(cfg *Config) *App {
 		log.Fatal("❌ Ошибка Telegram:", err)
 	}
 
+	log.Printf("🤖 Бот авторизован как: %s (ID: %d)", b.Me.Username, b.Me.ID)
+
 	return &App{
 		Config: cfg,
 		Bot:    b,
@@ -35,28 +36,24 @@ func NewApp(cfg *Config) *App {
 }
 
 func (a *App) RegisterHandlers() {
-	// Middleware: выполняется для каждого входящего апдейта
+
 	a.Bot.Use(func(next telebot.HandlerFunc) telebot.HandlerFunc {
 		return func(c telebot.Context) error {
-			// 1. Проверяем нажатие кнопки
-			if c.Callback() != nil {
-				return a.handleCallback(c)
-			}
-
-			// 2. Если это сообщение
-			if c.Message() != nil {
-				text := c.Text()
-				if strings.HasPrefix(text, "/") {
-					return a.handleCommand(c)
-				}
-				return a.handleText(c)
-			}
-
-			// Обязательно вызываем next, если хочешь,
-			// чтобы работали другие хендлеры (если они есть)
+			log.Printf("👤 [%d] %s: %s", c.Sender().ID, c.Sender().FirstName, c.Text())
 			return next(c)
 		}
 	})
+
+	// 1. Команды (явная регистрация)
+	a.Bot.Handle("/start", a.handleCommand)
+	a.Bot.Handle("/help", a.handleCommand)
+
+	// 2. Обычный текст (все, что не команда)
+	a.Bot.Handle(telebot.OnText, a.handleText)
+
+	// 3. Кнопки (Inline кнопки)
+	a.Bot.Handle(telebot.OnCallback, a.handleCallback)
+
 }
 
 // Start запускает бесконечный цикл бота

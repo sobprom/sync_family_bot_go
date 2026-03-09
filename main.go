@@ -1,6 +1,7 @@
 package main
 
 func main() {
+
 	// 1. Загружаем настройки
 	cfg := LoadConfig()
 
