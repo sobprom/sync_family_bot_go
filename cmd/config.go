@@ -1,8 +1,10 @@
-package main
+package cmd
 
 import (
 	"log"
 	"os"
+
+	"github.com/joho/godotenv"
 )
 
 type Config struct {
@@ -10,8 +12,11 @@ type Config struct {
 	DBUrl string
 }
 
-// LoadConfig читает данные из системы (Railway Settings)
 func LoadConfig() *Config {
+	if err := godotenv.Load(); err != nil {
+		// Не фатально, может быть используем системные переменные
+		log.Println("⚠️ .env файл не найден, используем системные переменные окружения")
+	}
 	token := os.Getenv("BOT_TOKEN")
 	dbUrl := os.Getenv("DATABASE_URL")
 
