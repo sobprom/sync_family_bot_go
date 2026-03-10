@@ -2,7 +2,9 @@ package cmd
 
 import (
 	"log"
-	"sync_family_bot_go/handlers"
+	"strings"
+	"sync_family_bot_go/internal/handlers"
+	"sync_family_bot_go/internal/model"
 	"time"
 
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
@@ -71,12 +73,46 @@ func (a *App) RegisterHandlers() {
 		}
 	})
 
-	// 1. Команды (явная регистрация)
-	a.Bot.Handle("/start", handlers.HandleCommand)
-	a.Bot.Handle("/help", handlers.HandleCommand)
+	// ЕДИНСТВЕННЫЙ обработчик для всего текста
+	a.Bot.Handle(telebot.OnText, func(ctx telebot.Context) error {
+		text := ctx.Text()
+		chatID := ctx.Chat().ID
 
-	// 2. Обычный текст (все, что не команда)
-	a.Bot.Handle(telebot.OnText, handlers.HandleText)
+		// Получаем команду через твою модель
+		command := model.GetCommand(text)
+
+		log.Printf("📨 Chat %d: команда %v, текст: %s", chatID, command, text)
+
+		// Твой switch из Java
+		switch command {
+		case model.CommandStart:
+			// Обычный /start
+			log.Printf("🤖 Команда: %s", command)
+
+			return handlers.HandleStart(ctx)
+
+		case model.CommandStartWithInvite:
+			// /start с инвайтом - извлекаем код
+			inviteCode := text[7:] // после "/start "
+			log.Printf("🤖 Команда: %s", command)
+			return handlers.HandleStartWithInvite(ctx, inviteCode)
+
+		case model.CommandCreateFamily:
+			// /create_family
+			log.Printf("🤖 Команда: %s", command)
+			return handlers.HandleCreateFamily(ctx)
+
+		case model.CommandUnknown:
+			// Если начинается с /, но неизвестная команда
+			if strings.HasPrefix(text, "/") {
+				return ctx.Send("❌ Неизвестная команда. Доступные: /start, /create_family")
+			}
+			// Обычный текст
+			return handlers.HandleText(ctx)
+		}
+
+		return nil
+	})
 
 	// 3. Кнопки (Inline кнопки)
 	a.Bot.Handle(telebot.OnCallback, handlers.HandleCallback)
