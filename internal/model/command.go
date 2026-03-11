@@ -1,5 +1,7 @@
 package model
 
+import "strings"
+
 type Command int
 
 const (
@@ -30,7 +32,7 @@ func GetCommand(text string) Command {
 	}
 
 	// Проверяем с префиксом /start (с пробелом)
-	if len(text) >= 7 && text[:7] == "/start " {
+	if strings.HasPrefix(text, "/start ") {
 		return CommandStartWithInvite
 	}
 
