@@ -24,13 +24,13 @@ func NewFamilyRepository(db *sqlx.DB) FamilyRepository {
 // GetFamilyMemberByChatId возвращает пользователя по chat_id.
 // Если пользователь не найден, возвращает nil, nil.
 // В случае ошибки БД возвращает ошибку.
-func (r *FamilyRepositoryImpl) GetFamilyMemberByChatId(chatID int64) (*model.Users, error) {
+func (repo *FamilyRepositoryImpl) GetFamilyMemberByChatId(chatID int64) (*model.Users, error) {
 
 	stmt := table.Users.SELECT(table.Users.AllColumns).
 		WHERE(table.Users.ChatID.EQ(postgres.Int(chatID)))
 
 	var user model.Users
-	err := stmt.Query(r.db, &user)
+	err := stmt.Query(repo.db, &user)
 
 	if err != nil {
 		// Проверяем, что записи не найдены
@@ -43,14 +43,14 @@ func (r *FamilyRepositoryImpl) GetFamilyMemberByChatId(chatID int64) (*model.Use
 	return &user, nil
 }
 
-func (r *FamilyRepositoryImpl) GetFamilyMembersByFamilyId(familyId int64) ([]model.Users, error) {
+func (repo *FamilyRepositoryImpl) GetFamilyMembersByFamilyId(familyId int64) ([]model.Users, error) {
 	var users []model.Users
 
 	stmt := table.Users.SELECT(table.Users.AllColumns).
 		WHERE(table.Users.FamilyID.EQ(postgres.Int(familyId)))
 
 	// Query сканирует результат напрямую в слайс структур
-	err := stmt.Query(r.db, &users)
+	err := stmt.Query(repo.db, &users)
 	if err != nil {
 		return nil, err
 	}
@@ -58,7 +58,7 @@ func (r *FamilyRepositoryImpl) GetFamilyMembersByFamilyId(familyId int64) ([]mod
 	return users, nil
 }
 
-func (r *FamilyRepositoryImpl) CreateFamilyMember(chatID int64, userName string) (*model.Users, error) {
+func (repo *FamilyRepositoryImpl) CreateFamilyMember(chatID int64, userName string) (*model.Users, error) {
 
 	inviteCode := uuid.New().String()
 
@@ -70,25 +70,25 @@ func (r *FamilyRepositoryImpl) CreateFamilyMember(chatID int64, userName string)
 		inviteCode,
 	).RETURNING(table.Families.ID)
 
-	err := insertFamilyStmt.Query(r.db, &family)
+	err := insertFamilyStmt.Query(repo.db, &family)
 	if err != nil {
 		return nil, err
 	}
 
-	return r.upsertUserFamily(chatID, family.ID, userName)
+	return repo.upsertUserFamily(chatID, family.ID, userName)
 
 }
 
-func (r *FamilyRepositoryImpl) DropEditingProductId(chatID int64) error {
+func (repo *FamilyRepositoryImpl) DropEditingProductId(chatID int64) error {
 	updateStmt := table.Users.UPDATE(table.Users.EditingProductID).
 		SET(nil).
 		WHERE(table.Users.ChatID.EQ(postgres.Int(chatID)))
 
-	_, err := updateStmt.Exec(r.db)
+	_, err := updateStmt.Exec(repo.db)
 	return err
 }
 
-func (r *FamilyRepositoryImpl) upsertUserFamily(chatID int64, familyID int64, userName string) (*model.Users, error) {
+func (repo *FamilyRepositoryImpl) upsertUserFamily(chatID int64, familyID int64, userName string) (*model.Users, error) {
 
 	insertStmt := table.Users.INSERT(
 		table.Users.ChatID,
@@ -106,7 +106,7 @@ func (r *FamilyRepositoryImpl) upsertUserFamily(chatID int64, familyID int64, us
 	).RETURNING(table.Users.AllColumns)
 
 	var user model.Users
-	err := insertStmt.Query(r.db, &user)
+	err := insertStmt.Query(repo.db, &user)
 	if err != nil {
 		return nil, err
 	}
@@ -114,13 +114,13 @@ func (r *FamilyRepositoryImpl) upsertUserFamily(chatID int64, familyID int64, us
 	return &user, nil
 }
 
-func (p *FamilyRepositoryImpl) UpdateLastMessageIds(users []model.Users) error {
+func (repo *FamilyRepositoryImpl) UpdateLastMessageIds(users []model.Users) error {
 	if len(users) == 0 {
 		return nil
 	}
 
 	// Начинаем транзакцию, чтобы пачка UPDATE прошла быстро
-	tx, err := p.db.Begin()
+	tx, err := repo.db.Begin()
 	if err != nil {
 		return err
 	}

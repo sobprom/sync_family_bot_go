@@ -16,12 +16,12 @@ func NewProductRepository(db *sqlx.DB) ProductRepository {
 	return &ProductRepositoryImpl{db: db}
 }
 
-func (p *ProductRepositoryImpl) UpdateProductName(productId int64, productName string) (bool, error) {
+func (repo *ProductRepositoryImpl) UpdateProductName(productId int64, productName string) (bool, error) {
 	stmt := table.ShoppingList.UPDATE(table.ShoppingList.ProductName).
 		SET(productName).
 		WHERE(table.ShoppingList.ID.EQ(postgres.Int(productId)))
 
-	res, err := stmt.Exec(p.db)
+	res, err := stmt.Exec(repo.db)
 	if err != nil {
 		return false, err
 	}
@@ -31,7 +31,7 @@ func (p *ProductRepositoryImpl) UpdateProductName(productId int64, productName s
 
 }
 
-func (p *ProductRepositoryImpl) AddProducts(familyId int64, products []string) error {
+func (repo *ProductRepositoryImpl) AddProducts(familyId int64, products []string) error {
 
 	if len(products) == 0 {
 		return nil
@@ -46,13 +46,13 @@ func (p *ProductRepositoryImpl) AddProducts(familyId int64, products []string) e
 		stmt = stmt.VALUES(postgres.Int(familyId), postgres.String(name))
 	}
 
-	_, err := stmt.ON_CONFLICT().DO_NOTHING().Exec(p.db)
+	_, err := stmt.ON_CONFLICT().DO_NOTHING().Exec(repo.db)
 
 	return err
 
 }
 
-func (p *ProductRepositoryImpl) GetAllProductsOrdered(familyId int64) ([]model.ShoppingList, error) {
+func (repo *ProductRepositoryImpl) GetAllProductsOrdered(familyId int64) ([]model.ShoppingList, error) {
 	var products []model.ShoppingList
 
 	stmt := table.ShoppingList.SELECT(table.ShoppingList.AllColumns).
@@ -63,7 +63,7 @@ func (p *ProductRepositoryImpl) GetAllProductsOrdered(familyId int64) ([]model.S
 		)
 
 	// Выполняем запрос и сканируем результат в слайс структур
-	err := stmt.Query(p.db, &products)
+	err := stmt.Query(repo.db, &products)
 	if err != nil {
 		return nil, err
 	}
