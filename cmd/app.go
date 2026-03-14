@@ -3,8 +3,10 @@ package cmd
 import (
 	"log"
 	"strings"
+	"sync_family_bot_go/internal/domain"
 	"sync_family_bot_go/internal/handlers"
-	"sync_family_bot_go/internal/model"
+	"sync_family_bot_go/internal/repository"
+	"sync_family_bot_go/internal/service"
 	"time"
 
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
@@ -17,9 +19,10 @@ import (
 
 // App хранит все зависимости нашего бота
 type App struct {
-	Config *Config
-	Bot    *telebot.Bot
-	DB     *sqlx.DB
+	Config      *Config
+	Bot         *telebot.Bot
+	DB          *sqlx.DB
+	textHandler *handlers.TextHandler
 }
 
 // NewApp — это "конструктор". Он собирает всё воедино.
@@ -57,10 +60,18 @@ func NewApp(cfg *Config) *App {
 
 	log.Printf("🤖 Бот авторизован как: %s (ID: %d)", b.Me.Username, b.Me.ID)
 
+	familyRepo := repository.NewFamilyRepository(db)
+	productRepo := repository.NewProductRepository(db)
+	listParser := service.NewListParser()
+	uiService := service.NewUIService()
+
+	textHandler := handlers.NewTextHandler(familyRepo, productRepo, listParser, uiService)
+
 	return &App{
-		Config: cfg,
-		Bot:    b,
-		DB:     db,
+		Config:      cfg,
+		Bot:         b,
+		DB:          db,
+		textHandler: textHandler,
 	}
 }
 
@@ -79,36 +90,36 @@ func (a *App) RegisterHandlers() {
 		chatID := ctx.Chat().ID
 
 		// Получаем команду через твою модель
-		command := model.GetCommand(text)
+		command := domain.GetCommand(text)
 
 		log.Printf("📨 Chat %d: команда %v, текст: %s", chatID, command, text)
 
 		// Твой switch из Java
 		switch command {
-		case model.CommandStart:
+		case domain.CommandStart:
 			// Обычный /start
 			log.Printf("🤖 Команда: %s", command)
 
 			return handlers.HandleStart(ctx)
 
-		case model.CommandStartWithInvite:
+		case domain.CommandStartWithInvite:
 			// /start с инвайтом - извлекаем код
 			inviteCode := text[7:] // после "/start "
 			log.Printf("🤖 Команда: %s", command)
 			return handlers.HandleStartWithInvite(ctx, inviteCode)
 
-		case model.CommandCreateFamily:
+		case domain.CommandCreateFamily:
 			// /create_family
 			log.Printf("🤖 Команда: %s", command)
 			return handlers.HandleCreateFamily(ctx)
 
-		case model.CommandUnknown:
+		case domain.CommandUnknown:
 			// Если начинается с /, но неизвестная команда
 			if strings.HasPrefix(text, "/") {
 				return ctx.Send("❌ Неизвестная команда. Доступные: /start, /create_family")
 			}
 			// Обычный текст
-			return handlers.HandleText(ctx)
+			return a.textHandler.HandleText(ctx)
 		}
 
 		return nil
