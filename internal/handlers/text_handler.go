@@ -90,17 +90,15 @@ func (h *TextHandler) HandleText(c telebot.Context) error {
 
 	textMsg := fmt.Sprintf("🛒 %s обновил(а) список покупок:", currentUser.Username)
 
+	oldMessageIDs := make(map[int64]int64) // chatID -> lastMessageID
+
 	// 1. Проходим по всем участникам семьи
 	for i := range allUsers {
 		user := &allUsers[i] // Берем по указателю, чтобы обновить LastMessageID внутри структуры
 
 		// 2. Удаляем предыдущее сообщение, если оно было (аналог DeleteMessage)
 		if user.LastMessageID != nil && *user.LastMessageID != 0 {
-			// Игнорируем ошибку удаления (сообщение могло быть удалено вручную или истек срок)
-			_ = c.Bot().Delete(&telebot.Message{
-				ID:   int(*user.LastMessageID),
-				Chat: &telebot.Chat{ID: user.ChatID},
-			})
+			oldMessageIDs[user.ChatID] = *user.LastMessageID
 		}
 
 		// 3. Формируем клавиатуру и текст
@@ -119,6 +117,19 @@ func (h *TextHandler) HandleText(c telebot.Context) error {
 			user.LastMessageID = new(int64(sent.ID))
 		}
 	}
+
+	// 7. Теперь удаляем старые сообщения
+	go func() {
+		for chatID, oldMsgID := range oldMessageIDs {
+			err := c.Bot().Delete(&telebot.Message{
+				ID:   int(oldMsgID),
+				Chat: &telebot.Chat{ID: chatID},
+			})
+			if err != nil {
+				log.Printf("⚠️ Не удалось удалить старое сообщение для чата %d: %v", chatID, err)
+			}
+		}
+	}()
 
 	// 5. Массово обновляем LastMessageID в базе данных (аналог familyRepository.updateLastMessageId)
 	err = h.familyRepo.UpdateLastMessageIds(allUsers)
