@@ -3,6 +3,7 @@ package handlers
 import (
 	"fmt"
 	"log"
+	"sync_family_bot_go/internal/gen/bots_go/family_sync/model"
 	"sync_family_bot_go/internal/repository"
 	"sync_family_bot_go/internal/service"
 
@@ -16,126 +17,94 @@ type TextHandler struct {
 	uiService   *service.UIService
 }
 
-func NewTextHandler(
-	familyRepo *repository.FamilyRepository,
-	productRepo *repository.ProductRepository,
-	listParser *service.ListParser,
-	uiService *service.UIService) *TextHandler {
-
-	return &TextHandler{
-		familyRepo:  familyRepo,
-		productRepo: productRepo,
-		listParser:  listParser,
-		uiService:   uiService,
-	}
+func NewTextHandler(fr *repository.FamilyRepository, pr *repository.ProductRepository, lp *service.ListParser, ui *service.UIService) *TextHandler {
+	return &TextHandler{familyRepo: fr, productRepo: pr, listParser: lp, uiService: ui}
 }
 
-// Обработчик обычного текста
 func (h *TextHandler) HandleText(c telebot.Context) error {
-	log.Printf("✍️ Текст: %s", c.Text())
 	senderChatID := c.Chat().ID
 	text := c.Text()
 
-	// 1. Получаем или создаем пользователя
-	currentUser, err := h.familyRepo.GetFamilyMemberByChatId(senderChatID)
+	// 1. Получаем/Создаем юзера
+	user, err := h.getOrCreateUser(senderChatID, c.Sender().FirstName)
 	if err != nil {
-		log.Printf("❌ Ошибка БД (GetMember): %v", err)
 		return c.Send("❌ Ошибка доступа к базе данных.")
 	}
-	if currentUser == nil {
-		currentUser, err = h.familyRepo.CreateFamilyMember(senderChatID, c.Sender().FirstName)
-		if err != nil {
-			log.Printf("❌ Ошибка БД (Create): %v", err)
-			return c.Send("❌ Не удалось создать профиль.")
-		}
+
+	if user.FamilyID == nil {
+		return c.Send("⚠️ Вы не состоите в семье.")
 	}
+	familyID := *user.FamilyID
 
-	familyID := *currentUser.FamilyID
-
-	// 2. Обновление названия продукта, если пользователь в режиме редактирования
-	if currentUser.EditingProductID != nil {
-		updated, updateErr := h.productRepo.UpdateProductName(*currentUser.EditingProductID, text)
-		err = updateErr // сохраняем для общей проверки
-		if updated && err == nil {
-			err = h.familyRepo.DropEditingProductId(senderChatID)
-		}
-
-		// добавление продуктов, если пользователь не в режиме редактирования
-	} else {
-		products := h.listParser.Parse(text)
-		if len(products) > 0 {
-			err = h.productRepo.AddProducts(familyID, products)
-		}
-	}
-
-	// 3. Единый обработчик ошибок для шага №2
-	if err != nil {
+	// 2. Обрабатываем ввод (Редактирование или Добавление)
+	if err := h.processInput(user, text); err != nil {
 		log.Printf("❌ Ошибка бизнес-логики: %v", err)
-		return c.Send("❌ Не удалось обновить список. Попробуйте позже.")
+		return c.Send("❌ Не удалось обновить список.")
 	}
 
-	// 4. Получаем данные для отображения
-	productsOrdered, err := h.productRepo.GetAllProductsOrdered(familyID)
-	if err != nil {
-		log.Printf("❌ Ошибка получения списка: %v", err)
-		return c.Send("❌ Не удалось обновить список. Попробуйте позже.")
-	}
-
-	allUsers, err := h.familyRepo.GetFamilyMembersByFamilyId(familyID)
-
-	if err != nil {
-		log.Printf("❌ Ошибка получения пользователей семьи: %v", err)
-		return c.Send("❌ Не удалось обновить список. Попробуйте позже.")
-	}
-
-	textMsg := fmt.Sprintf("🛒 %s обновил(а) список покупок:", currentUser.Username)
-
-	oldMessageIDs := make(map[int64]int64) // chatID -> lastMessageID
-
-	// 1. Проходим по всем участникам семьи
-	for i := range allUsers {
-		user := &allUsers[i] // Берем по указателю, чтобы обновить LastMessageID внутри структуры
-
-		// 2. Удаляем предыдущее сообщение, если оно было (аналог DeleteMessage)
-		if user.LastMessageID != nil && *user.LastMessageID != 0 {
-			oldMessageIDs[user.ChatID] = *user.LastMessageID
-		}
-
-		// 3. Формируем клавиатуру и текст
-		keyboard := h.uiService.CreateShoppingListKeyboard(productsOrdered, user.ShoppingListEditMode)
-
-		// 4. Отправляем новое сообщение
-		sent, err := c.Bot().Send(&telebot.Chat{ID: user.ChatID}, textMsg, keyboard)
-
-		if err != nil {
-
-			log.Printf("⚠️ Не удалось отправить сообщение пользователю %d: %v", user.ChatID, err)
-			continue
-		}
-
-		if sent != nil {
-			user.LastMessageID = new(int64(sent.ID))
-		}
-	}
-
-	// 7. Теперь удаляем старые сообщения
-	go func() {
-		for chatID, oldMsgID := range oldMessageIDs {
-			err := c.Bot().Delete(&telebot.Message{
-				ID:   int(oldMsgID),
-				Chat: &telebot.Chat{ID: chatID},
-			})
-			if err != nil {
-				log.Printf("⚠️ Не удалось удалить старое сообщение для чата %d: %v", chatID, err)
-			}
-		}
-	}()
-
-	// 5. Массово обновляем LastMessageID в базе данных (аналог familyRepository.updateLastMessageId)
-	err = h.familyRepo.UpdateLastMessageIds(allUsers)
-	if err != nil {
-		log.Printf("❌ Ошибка при сохранении LastMessageIds: %v", err)
-	}
+	// 3. Рассылаем обновления всей семье
+	go h.notifyFamilyMembers(c, user, familyID)
 
 	return nil
+}
+
+// getOrCreateUser выносит логику инициализации пользователя
+func (h *TextHandler) getOrCreateUser(chatID int64, firstName string) (*model.Users, error) {
+	user, err := h.familyRepo.GetFamilyMemberByChatId(chatID)
+	if err != nil {
+		return nil, err
+	}
+	if user == nil {
+		return h.familyRepo.CreateFamilyMember(chatID, firstName)
+	}
+	return user, nil
+}
+
+// processInput решает: обновить существующий продукт или распарсить список новых
+func (h *TextHandler) processInput(user *model.Users, text string) error {
+	if user.EditingProductID != nil {
+		updated, err := h.productRepo.UpdateProductName(*user.EditingProductID, text)
+		if err == nil && updated {
+			return h.familyRepo.DropEditingProductId(user.ChatID)
+		}
+		return err
+	}
+
+	products := h.listParser.Parse(text)
+	if len(products) > 0 {
+		return h.productRepo.AddProducts(*user.FamilyID, products)
+	}
+	return nil
+}
+
+// notifyFamilyMembers берет на себя тяжелую логику рассылки (лучше в горутине)
+func (h *TextHandler) notifyFamilyMembers(c telebot.Context, sender *model.Users, familyID int64) {
+	products, _ := h.productRepo.GetAllProductsOrdered(familyID)
+	members, _ := h.familyRepo.GetFamilyMembersByFamilyId(familyID)
+
+	header := fmt.Sprintf("🛒 %s обновил(а) список покупок:", sender.Username)
+
+	for i := range members {
+		member := &members[i]
+
+		// 1. Сначала ОТПРАВЛЯЕМ новое сообщение
+		kb := h.uiService.CreateShoppingListKeyboard(products, member.ShoppingListEditMode)
+		sent, err := c.Bot().Send(&telebot.Chat{ID: member.ChatID}, header, kb)
+
+		if err == nil {
+			// 2. Если отправили успешно, УДАЛЯЕМ старое (если оно было)
+			if member.LastMessageID != nil && *member.LastMessageID != 0 {
+				_ = c.Bot().Delete(&telebot.Message{
+					ID:   int(*member.LastMessageID),
+					Chat: &telebot.Chat{ID: member.ChatID},
+				})
+			}
+
+			// 3. Запоминаем новый ID для базы
+			member.LastMessageID = new(int64(sent.ID))
+		}
+	}
+
+	// 4. Сохраняем новые LastMessageID в БД
+	_ = h.familyRepo.UpdateLastMessageIds(members)
 }
