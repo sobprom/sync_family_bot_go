@@ -11,13 +11,16 @@ import (
 )
 
 type TextHandler struct {
-	familyRepo  *repository.FamilyRepository
-	productRepo *repository.ProductRepository
+	familyRepo  repository.FamilyRepository
+	productRepo repository.ProductRepository
 	listParser  *service.ListParser
 	uiService   *service.UIService
 }
 
-func NewTextHandler(fr *repository.FamilyRepository, pr *repository.ProductRepository, lp *service.ListParser, ui *service.UIService) *TextHandler {
+func NewTextHandler(fr repository.FamilyRepository,
+	pr repository.ProductRepository,
+	lp *service.ListParser,
+	ui *service.UIService) *TextHandler {
 	return &TextHandler{familyRepo: fr, productRepo: pr, listParser: lp, uiService: ui}
 }
 

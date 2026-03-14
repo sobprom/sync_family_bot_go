@@ -8,15 +8,15 @@ import (
 	"github.com/jmoiron/sqlx"
 )
 
-type ProductRepository struct {
+type ProductRepositoryImpl struct {
 	db *sqlx.DB
 }
 
-func NewProductRepository(db *sqlx.DB) *ProductRepository {
-	return &ProductRepository{db: db}
+func NewProductRepository(db *sqlx.DB) ProductRepository {
+	return &ProductRepositoryImpl{db: db}
 }
 
-func (p *ProductRepository) UpdateProductName(productId int64, productName string) (bool, error) {
+func (p *ProductRepositoryImpl) UpdateProductName(productId int64, productName string) (bool, error) {
 	stmt := table.ShoppingList.UPDATE(table.ShoppingList.ProductName).
 		SET(productName).
 		WHERE(table.ShoppingList.ID.EQ(postgres.Int(productId)))
@@ -31,7 +31,7 @@ func (p *ProductRepository) UpdateProductName(productId int64, productName strin
 
 }
 
-func (p *ProductRepository) AddProducts(familyId int64, products []string) error {
+func (p *ProductRepositoryImpl) AddProducts(familyId int64, products []string) error {
 
 	if len(products) == 0 {
 		return nil
@@ -52,7 +52,7 @@ func (p *ProductRepository) AddProducts(familyId int64, products []string) error
 
 }
 
-func (p *ProductRepository) GetAllProductsOrdered(familyId int64) ([]model.ShoppingList, error) {
+func (p *ProductRepositoryImpl) GetAllProductsOrdered(familyId int64) ([]model.ShoppingList, error) {
 	var products []model.ShoppingList
 
 	stmt := table.ShoppingList.SELECT(table.ShoppingList.AllColumns).

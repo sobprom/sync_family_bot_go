@@ -13,18 +13,18 @@ import (
 	"github.com/jmoiron/sqlx"
 )
 
-type FamilyRepository struct {
+type FamilyRepositoryImpl struct {
 	db *sqlx.DB
 }
 
-func NewFamilyRepository(db *sqlx.DB) *FamilyRepository {
-	return &FamilyRepository{db: db}
+func NewFamilyRepository(db *sqlx.DB) FamilyRepository {
+	return &FamilyRepositoryImpl{db: db}
 }
 
 // GetFamilyMemberByChatId возвращает пользователя по chat_id.
 // Если пользователь не найден, возвращает nil, nil.
 // В случае ошибки БД возвращает ошибку.
-func (r *FamilyRepository) GetFamilyMemberByChatId(chatID int64) (*model.Users, error) {
+func (r *FamilyRepositoryImpl) GetFamilyMemberByChatId(chatID int64) (*model.Users, error) {
 
 	stmt := table.Users.SELECT(table.Users.AllColumns).
 		WHERE(table.Users.ChatID.EQ(postgres.Int(chatID)))
@@ -43,7 +43,7 @@ func (r *FamilyRepository) GetFamilyMemberByChatId(chatID int64) (*model.Users, 
 	return &user, nil
 }
 
-func (r *FamilyRepository) GetFamilyMembersByFamilyId(familyId int64) ([]model.Users, error) {
+func (r *FamilyRepositoryImpl) GetFamilyMembersByFamilyId(familyId int64) ([]model.Users, error) {
 	var users []model.Users
 
 	stmt := table.Users.SELECT(table.Users.AllColumns).
@@ -58,7 +58,7 @@ func (r *FamilyRepository) GetFamilyMembersByFamilyId(familyId int64) ([]model.U
 	return users, nil
 }
 
-func (r *FamilyRepository) CreateFamilyMember(chatID int64, userName string) (*model.Users, error) {
+func (r *FamilyRepositoryImpl) CreateFamilyMember(chatID int64, userName string) (*model.Users, error) {
 
 	inviteCode := uuid.New().String()
 
@@ -79,7 +79,7 @@ func (r *FamilyRepository) CreateFamilyMember(chatID int64, userName string) (*m
 
 }
 
-func (r *FamilyRepository) DropEditingProductId(chatID int64) error {
+func (r *FamilyRepositoryImpl) DropEditingProductId(chatID int64) error {
 	updateStmt := table.Users.UPDATE(table.Users.EditingProductID).
 		SET(nil).
 		WHERE(table.Users.ChatID.EQ(postgres.Int(chatID)))
@@ -88,7 +88,7 @@ func (r *FamilyRepository) DropEditingProductId(chatID int64) error {
 	return err
 }
 
-func (r *FamilyRepository) upsertUserFamily(chatID int64, familyID int64, userName string) (*model.Users, error) {
+func (r *FamilyRepositoryImpl) upsertUserFamily(chatID int64, familyID int64, userName string) (*model.Users, error) {
 
 	insertStmt := table.Users.INSERT(
 		table.Users.ChatID,
@@ -114,7 +114,7 @@ func (r *FamilyRepository) upsertUserFamily(chatID int64, familyID int64, userNa
 	return &user, nil
 }
 
-func (p *FamilyRepository) UpdateLastMessageIds(users []model.Users) error {
+func (p *FamilyRepositoryImpl) UpdateLastMessageIds(users []model.Users) error {
 	if len(users) == 0 {
 		return nil
 	}
