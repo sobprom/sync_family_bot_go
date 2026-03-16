@@ -110,6 +110,8 @@ func (a *App) registerHandlers() {
 			return a.messageHandler.HandleText(ctx)
 		}
 
+		log.Println("✅ Обработчики бота зарегистрированы")
+
 		return nil
 	})
 
