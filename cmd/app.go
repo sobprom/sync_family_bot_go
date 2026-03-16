@@ -5,15 +5,12 @@ import (
 	"strings"
 	"sync_family_bot_go/internal/domain"
 	"sync_family_bot_go/internal/handlers"
-	"sync_family_bot_go/internal/repository"
-	"sync_family_bot_go/internal/service"
 	"time"
 
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/jmoiron/sqlx"
-	"github.com/pressly/goose/v3"
 	"gopkg.in/telebot.v3"
 )
 
@@ -39,20 +36,6 @@ func NewApp(cfg *Config) *App {
 		log.Fatal("❌ Ошибка базы:", err)
 	}
 
-	// 2. Настройка Goose (аналог Flyway)
-	// Устанавливаем диалект
-	if err := goose.SetDialect("postgres"); err != nil {
-		log.Fatal("❌ Ошибка диалекта goose:", err)
-	}
-
-	log.Println("Run migrations...")
-	// Запускаем миграции из папки "migrations"
-	// db.DB — это извлечение стандартного *sql.DB из sqlx
-	if err := goose.Up(db.DB, "migrations"); err != nil {
-		log.Fatal("❌ Ошибка миграций:", err)
-	}
-	log.Println("✅ Миграции успешно применены")
-
 	b, err := telebot.NewBot(pref)
 	if err != nil {
 		log.Fatal("❌ Ошибка Telegram:", err)
@@ -60,26 +43,27 @@ func NewApp(cfg *Config) *App {
 
 	log.Printf("🤖 Бот авторизован как: %s (ID: %d)", b.Me.Username, b.Me.ID)
 
-	familyRepo := repository.NewFamilyRepository(db)
-	productRepo := repository.NewProductRepository(db)
-	listParser := service.NewListParser()
-	uiService := service.NewUIService()
+	messageHandler := handlers.NewMessageHandler(db)
 
-	textHandler := handlers.NewTextHandler(familyRepo, productRepo, listParser, uiService)
-	commandHandler := handlers.NewCommandHandler()
-	callbackHandler := handlers.NewCallbackHandler()
-
-	messageHandler := handlers.NewMessageHandler(textHandler, commandHandler, callbackHandler)
-
-	return &App{
+	app := &App{
 		Config:         cfg,
 		Bot:            b,
 		DB:             db,
 		messageHandler: messageHandler,
 	}
+
+	app.registerHandlers()
+
+	return app
 }
 
-func (a *App) RegisterHandlers() {
+// Start запускает бесконечный цикл бота
+func (a *App) Start() {
+	log.Println("🚀 Бот на Go успешно запущен!")
+	a.Bot.Start()
+}
+
+func (a *App) registerHandlers() {
 
 	a.Bot.Use(func(next telebot.HandlerFunc) telebot.HandlerFunc {
 		return func(c telebot.Context) error {
@@ -132,10 +116,4 @@ func (a *App) RegisterHandlers() {
 	// 3. Кнопки (Inline кнопки)
 	a.Bot.Handle(telebot.OnCallback, a.messageHandler.HandleCallback)
 
-}
-
-// Start запускает бесконечный цикл бота
-func (a *App) Start() {
-	log.Println("🚀 Бот на Go успешно запущен!")
-	a.Bot.Start()
 }

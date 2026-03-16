@@ -1,6 +1,10 @@
 package handlers
 
 import (
+	"sync_family_bot_go/internal/repository"
+	"sync_family_bot_go/internal/service"
+
+	"github.com/jmoiron/sqlx"
 	"gopkg.in/telebot.v3"
 )
 
@@ -12,11 +16,20 @@ type MessageHandlerImpl struct {
 }
 
 // NewMessageHandler создает новый экземпляр MessageHandler
-func NewMessageHandler(
-	textHandler TextHandler,
-	commandHandler CommandHandler,
-	callbackHandler CallbackHandler,
-) MessageHandler {
+func NewMessageHandler(db *sqlx.DB) MessageHandler {
+	// Создаем репозитории
+	familyRepo := repository.NewFamilyRepository(db)
+	productRepo := repository.NewProductRepository(db)
+
+	// Создаем сервисы
+	listParser := service.NewListParser()
+	uiService := service.NewUIService()
+
+	// Создаем обработчики
+	textHandler := NewTextHandler(familyRepo, productRepo, listParser, uiService)
+	commandHandler := NewCommandHandler()
+	callbackHandler := NewCallbackHandler()
+
 	return &MessageHandlerImpl{
 		textHandler:     textHandler,
 		commandHandler:  commandHandler,
