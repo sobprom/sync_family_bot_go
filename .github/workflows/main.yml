@@ -43,18 +43,14 @@ jobs:
         run: go install github.com/go-jet/jet/v2/cmd/jet@latest
 
       - name: Run database migrations
-        run: |
-          goose -dir migrations postgres "postgresql://bot:bot@localhost:5432/bots?sslmode=disable" up
+        run: make migrate-up
         env:
-          GOOSE_DRIVER: postgres
-          GOOSE_DBSTRING: postgresql://bot:bot@localhost:5432/bots?sslmode=disable
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
       - name: Generate Jet models
-        run: |
-          cd internal/gen
-          jet -dsn="postgresql://bot:bot@localhost:5432/bots?sslmode=disable" -path=./gen
+        run: make gen-db
         env:
-          JET_DSN: postgresql://bot:bot@localhost:5432/bots?sslmode=disable
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
       - name: Run tests
         run: go test -v ./...
