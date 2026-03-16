@@ -6,7 +6,14 @@ import (
 	"gopkg.in/telebot.v3"
 )
 
-func HandleStart(c telebot.Context) error {
+type CommandHandlerImpl struct {
+}
+
+func NewCommandHandler() CommandHandler {
+	return &CommandHandlerImpl{}
+}
+
+func (h *CommandHandlerImpl) HandleStart(c telebot.Context) error {
 
 	// Получаем Chat ID
 	chatID := c.Chat().ID
@@ -15,7 +22,7 @@ func HandleStart(c telebot.Context) error {
 	return c.Send("Вы ввели команду: " + c.Text())
 }
 
-func HandleStartWithInvite(c telebot.Context, inviteCode string) error {
+func (h *CommandHandlerImpl) HandleStartWithInvite(c telebot.Context, inviteCode string) error {
 
 	// Получаем Chat ID
 	chatID := c.Chat().ID
@@ -24,7 +31,7 @@ func HandleStartWithInvite(c telebot.Context, inviteCode string) error {
 	return c.Send("Вы ввели команду: " + c.Text())
 }
 
-func HandleCreateFamily(c telebot.Context) error {
+func (h *CommandHandlerImpl) HandleCreateFamily(c telebot.Context) error {
 
 	// Получаем Chat ID
 	chatID := c.Chat().ID

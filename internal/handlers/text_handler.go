@@ -10,7 +10,7 @@ import (
 	"gopkg.in/telebot.v3"
 )
 
-type TextHandler struct {
+type TextHandlerImpl struct {
 	familyRepo  repository.FamilyRepository
 	productRepo repository.ProductRepository
 	listParser  *service.ListParser
@@ -20,11 +20,11 @@ type TextHandler struct {
 func NewTextHandler(fr repository.FamilyRepository,
 	pr repository.ProductRepository,
 	lp *service.ListParser,
-	ui *service.UIService) *TextHandler {
-	return &TextHandler{familyRepo: fr, productRepo: pr, listParser: lp, uiService: ui}
+	ui *service.UIService) TextHandler {
+	return &TextHandlerImpl{familyRepo: fr, productRepo: pr, listParser: lp, uiService: ui}
 }
 
-func (h *TextHandler) HandleText(c telebot.Context) error {
+func (h *TextHandlerImpl) HandleText(c telebot.Context) error {
 	senderChatID := c.Chat().ID
 	text := c.Text()
 
@@ -52,7 +52,7 @@ func (h *TextHandler) HandleText(c telebot.Context) error {
 }
 
 // getOrCreateUser выносит логику инициализации пользователя
-func (h *TextHandler) getOrCreateUser(chatID int64, firstName string) (*model.Users, error) {
+func (h *TextHandlerImpl) getOrCreateUser(chatID int64, firstName string) (*model.Users, error) {
 	user, err := h.familyRepo.GetFamilyMemberByChatId(chatID)
 	if err != nil {
 		return nil, err
@@ -64,7 +64,7 @@ func (h *TextHandler) getOrCreateUser(chatID int64, firstName string) (*model.Us
 }
 
 // processInput решает: обновить существующий продукт или распарсить список новых
-func (h *TextHandler) processInput(user *model.Users, text string) error {
+func (h *TextHandlerImpl) processInput(user *model.Users, text string) error {
 	if user.EditingProductID != nil {
 		updated, err := h.productRepo.UpdateProductName(*user.EditingProductID, text)
 		if err == nil && updated {
@@ -81,7 +81,7 @@ func (h *TextHandler) processInput(user *model.Users, text string) error {
 }
 
 // notifyFamilyMembers берет на себя тяжелую логику рассылки (лучше в горутине)
-func (h *TextHandler) notifyFamilyMembers(c telebot.Context, sender *model.Users, familyID int64) {
+func (h *TextHandlerImpl) notifyFamilyMembers(c telebot.Context, sender *model.Users, familyID int64) {
 	products, _ := h.productRepo.GetAllProductsOrdered(familyID)
 	members, _ := h.familyRepo.GetFamilyMembersByFamilyId(familyID)
 

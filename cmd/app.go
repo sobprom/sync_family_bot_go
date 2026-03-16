@@ -19,10 +19,10 @@ import (
 
 // App хранит все зависимости нашего бота
 type App struct {
-	Config      *Config
-	Bot         *telebot.Bot
-	DB          *sqlx.DB
-	textHandler *handlers.TextHandler
+	Config         *Config
+	Bot            *telebot.Bot
+	DB             *sqlx.DB
+	messageHandler handlers.MessageHandler
 }
 
 // NewApp — это "конструктор". Он собирает всё воедино.
@@ -66,12 +66,16 @@ func NewApp(cfg *Config) *App {
 	uiService := service.NewUIService()
 
 	textHandler := handlers.NewTextHandler(familyRepo, productRepo, listParser, uiService)
+	commandHandler := handlers.NewCommandHandler()
+	callbackHandler := handlers.NewCallbackHandler()
+
+	messageHandler := handlers.NewMessageHandler(textHandler, commandHandler, callbackHandler)
 
 	return &App{
-		Config:      cfg,
-		Bot:         b,
-		DB:          db,
-		textHandler: textHandler,
+		Config:         cfg,
+		Bot:            b,
+		DB:             db,
+		messageHandler: messageHandler,
 	}
 }
 
@@ -100,18 +104,18 @@ func (a *App) RegisterHandlers() {
 			// Обычный /start
 			log.Printf("🤖 Команда: %s", command)
 
-			return handlers.HandleStart(ctx)
+			return a.messageHandler.HandleStart(ctx)
 
 		case domain.CommandStartWithInvite:
 			// /start с инвайтом - извлекаем код
 			inviteCode := text[7:] // после "/start "
 			log.Printf("🤖 Команда: %s", command)
-			return handlers.HandleStartWithInvite(ctx, inviteCode)
+			return a.messageHandler.HandleStartWithInvite(ctx, inviteCode)
 
 		case domain.CommandCreateFamily:
 			// /create_family
 			log.Printf("🤖 Команда: %s", command)
-			return handlers.HandleCreateFamily(ctx)
+			return a.messageHandler.HandleCreateFamily(ctx)
 
 		case domain.CommandUnknown:
 			// Если начинается с /, но неизвестная команда
@@ -119,14 +123,14 @@ func (a *App) RegisterHandlers() {
 				return ctx.Send("❌ Неизвестная команда. Доступные: /start, /create_family")
 			}
 			// Обычный текст
-			return a.textHandler.HandleText(ctx)
+			return a.messageHandler.HandleText(ctx)
 		}
 
 		return nil
 	})
 
 	// 3. Кнопки (Inline кнопки)
-	a.Bot.Handle(telebot.OnCallback, handlers.HandleCallback)
+	a.Bot.Handle(telebot.OnCallback, a.messageHandler.HandleCallback)
 
 }
 
