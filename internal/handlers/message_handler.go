@@ -24,11 +24,12 @@ func NewMessageHandler(db *sqlx.DB) MessageHandler {
 	// Создаем сервисы
 	listParser := service.NewListParser()
 	uiService := service.NewUIService()
+	notification := service.NewNotificationService(familyRepo, productRepo, uiService)
 
 	// Создаем обработчики
-	textHandler := NewTextHandler(familyRepo, productRepo, listParser, uiService)
-	commandHandler := NewCommandHandler()
-	callbackHandler := NewCallbackHandler()
+	textHandler := NewTextHandler(familyRepo, productRepo, listParser, uiService, notification)
+	commandHandler := NewCommandHandler(familyRepo)
+	callbackHandler := NewCallbackHandler(familyRepo, productRepo, commandHandler, uiService, notification)
 
 	return &MessageHandlerImpl{
 		textHandler:     textHandler,

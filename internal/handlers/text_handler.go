@@ -11,17 +11,19 @@ import (
 )
 
 type TextHandlerImpl struct {
-	familyRepo  repository.FamilyRepository
-	productRepo repository.ProductRepository
-	listParser  *service.ListParser
-	uiService   *service.UIService
+	familyRepo   repository.FamilyRepository
+	productRepo  repository.ProductRepository
+	listParser   *service.ListParser
+	uiService    *service.UIService
+	notification *service.NotificationService
 }
 
 func NewTextHandler(fr repository.FamilyRepository,
 	pr repository.ProductRepository,
 	lp *service.ListParser,
-	ui *service.UIService) TextHandler {
-	return &TextHandlerImpl{familyRepo: fr, productRepo: pr, listParser: lp, uiService: ui}
+	ui *service.UIService,
+	nt *service.NotificationService) TextHandler {
+	return &TextHandlerImpl{familyRepo: fr, productRepo: pr, listParser: lp, uiService: ui, notification: nt}
 }
 
 func (h *TextHandlerImpl) HandleText(c telebot.Context) error {
@@ -46,7 +48,8 @@ func (h *TextHandlerImpl) HandleText(c telebot.Context) error {
 	}
 
 	// 3. Рассылаем обновления всей семье
-	go h.notifyFamilyMembers(c, user, familyID)
+	header := fmt.Sprintf("🛒 %s обновил(а) список покупок:", user.Username)
+	go h.notification.NotifyFamilyUpdate(c, familyID, header)
 
 	return nil
 }
@@ -78,36 +81,4 @@ func (h *TextHandlerImpl) processInput(user *model.Users, text string) error {
 		return h.productRepo.AddProducts(*user.FamilyID, products)
 	}
 	return nil
-}
-
-// notifyFamilyMembers берет на себя тяжелую логику рассылки (лучше в горутине)
-func (h *TextHandlerImpl) notifyFamilyMembers(c telebot.Context, sender *model.Users, familyID int64) {
-	products, _ := h.productRepo.GetAllProductsOrdered(familyID)
-	members, _ := h.familyRepo.GetFamilyMembersByFamilyId(familyID)
-
-	header := fmt.Sprintf("🛒 %s обновил(а) список покупок:", sender.Username)
-
-	for i := range members {
-		member := &members[i]
-
-		// 1. Сначала ОТПРАВЛЯЕМ новое сообщение
-		kb := h.uiService.CreateShoppingListKeyboard(products, member.ShoppingListEditMode)
-		sent, err := c.Bot().Send(&telebot.Chat{ID: member.ChatID}, header, kb)
-
-		if err == nil {
-			// 2. Если отправили успешно, УДАЛЯЕМ старое (если оно было)
-			if member.LastMessageID != nil && *member.LastMessageID != 0 {
-				_ = c.Bot().Delete(&telebot.Message{
-					ID:   int(*member.LastMessageID),
-					Chat: &telebot.Chat{ID: member.ChatID},
-				})
-			}
-
-			// 3. Запоминаем новый ID для базы
-			member.LastMessageID = new(int64(sent.ID))
-		}
-	}
-
-	// 4. Сохраняем новые LastMessageID в БД
-	_ = h.familyRepo.UpdateLastMessageIds(members)
 }

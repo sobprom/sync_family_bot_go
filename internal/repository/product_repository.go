@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"log"
 	"sync_family_bot_go/internal/gen/bots_go/family_sync/model"
 	"sync_family_bot_go/internal/gen/bots_go/family_sync/table"
 
@@ -69,4 +70,18 @@ func (repo *ProductRepositoryImpl) GetAllProductsOrdered(familyId int64) ([]mode
 	}
 
 	return products, nil
+}
+
+func (repo *ProductRepositoryImpl) DeleteAllByFamilyId(familyID int64) error {
+
+	stmt := table.ShoppingList.DELETE().
+		WHERE(table.ShoppingList.FamilyID.EQ(postgres.Int(familyID)))
+
+	_, err := stmt.Exec(repo.db)
+	if err != nil {
+		log.Printf("❌ Ошибка при удалении продуктов семьи %d: %v", familyID, err)
+		return err
+	}
+
+	return nil
 }

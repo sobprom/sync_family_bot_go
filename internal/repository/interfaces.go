@@ -7,11 +7,15 @@ type FamilyRepository interface {
 	GetFamilyMembersByFamilyId(familyID int64) ([]model.Users, error)
 	CreateFamilyMember(chatID int64, userName string) (*model.Users, error)
 	DropEditingProductId(chatID int64) error
+	DropShoppingEditMode(chatID int64) error
 	UpdateLastMessageIds(users []model.Users) error
+	JoinFamily(chatID int64, code string, userName string) (*model.Users, error)
+	GetFamilyCode(familyID int64) (string, error)
 }
 
 type ProductRepository interface {
 	UpdateProductName(productID int64, productName string) (bool, error)
 	AddProducts(familyID int64, products []string) error
 	GetAllProductsOrdered(familyID int64) ([]model.ShoppingList, error)
+	DeleteAllByFamilyId(familyID int64) error
 }
