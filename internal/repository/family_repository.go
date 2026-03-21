@@ -201,6 +201,42 @@ func (repo *FamilyRepositoryImpl) DropShoppingEditMode(chatID int64) error {
 	return nil
 }
 
+func (repo *FamilyRepositoryImpl) ToggleShoppingEditMode(chatID int64) (*model.Users, error) {
+
+	stmt := table.Users.UPDATE(table.Users.ShoppingListEditMode).
+		SET(
+			postgres.Bool(true),
+		).
+		WHERE(table.Users.ChatID.EQ(postgres.Int(chatID))).
+		RETURNING(table.Users.AllColumns)
+
+	var updatedUser model.Users
+	err := stmt.Query(repo.db, &updatedUser)
+	if err != nil {
+		return nil, err
+	}
+
+	return &updatedUser, nil
+}
+
+func (repo *FamilyRepositoryImpl) SetEditingProductId(chatID int64, productID int64) error {
+	updateStmt := table.Users.UPDATE(
+		table.Users.EditingProductID,
+	).SET(
+		postgres.Int(productID),
+	).WHERE(
+		table.Users.ChatID.EQ(postgres.Int(chatID)),
+	)
+
+	_, err := updateStmt.Exec(repo.db)
+	if err != nil {
+		log.Printf("❌ Ошибка установки editing_product_id для chat %d: %v", chatID, err)
+		return err
+	}
+
+	return nil
+}
+
 func (repo *FamilyRepositoryImpl) upsertUserFamily(chatID int64,
 	familyID int64,
 	userName string) (*model.Users, error) {
