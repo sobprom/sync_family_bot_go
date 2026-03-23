@@ -1,30 +1,14 @@
-# Dockerfile
-FROM golang:1.26-alpine AS builder
-
-WORKDIR /app
-
-# Копируем go.mod и go.sum
-COPY go.mod go.sum ./
-RUN go mod download
-
-# Копируем исходный код
-COPY . .
-
-# Собираем бинарник
-RUN CGO_ENABLED=0 GOOS=linux go build -o bot main.go
-
-# Финальный образ
+# Dockerfile - для использования уже собранного бинарника
 FROM alpine:latest
 
 RUN apk --no-cache add ca-certificates
 
-WORKDIR /root/
+WORKDIR /app
 
-# Копируем бинарник из builder
-COPY --from=builder /app/bot .
+# Копируем уже собранный бинарник (не собираем заново)
+COPY bot .
 
-# Копируем .env файл (опционально)
-COPY --from=builder /app/.env .env
+# Делаем бинарник исполняемым
+RUN chmod +x bot
 
-# Запускаем бота
 CMD ["./bot"]
