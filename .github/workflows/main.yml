@@ -12,7 +12,7 @@ jobs:
       postgres:
         image: postgres:15
         env:
-          POSTGRES_DB: bots
+          POSTGRES_DB: bots_go
           POSTGRES_USER: bot
           POSTGRES_PASSWORD: bot
         ports:
@@ -45,12 +45,12 @@ jobs:
       - name: Run database migrations
         run: make migrate-up
         env:
-          DATABASE_URL: "postgres://bot:bot@localhost:5432/bots?sslmode=disable"
+          DATABASE_URL: "postgres://bot:bot@localhost:5432/bots_go?sslmode=disable"
 
       - name: Generate Jet models
         run: make gen-db
         env:
-          DATABASE_URL: "postgres://bot:bot@localhost:5432/bots?sslmode=disable"
+          DATABASE_URL: "postgres://bot:bot@localhost:5432/bots_go?sslmode=disable"
 
       - name: Build binary
         run: go build -o bot main.go
