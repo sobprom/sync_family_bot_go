@@ -11,6 +11,7 @@ import (
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/jmoiron/sqlx"
+	"github.com/pressly/goose/v3"
 	"gopkg.in/telebot.v3"
 )
 
@@ -35,6 +36,20 @@ func NewApp(cfg *Config) *App {
 	if err != nil {
 		log.Fatal("❌ Ошибка базы:", err)
 	}
+
+	// 2. Настройка Goose (аналог Flyway)
+	// Устанавливаем диалект
+	if err := goose.SetDialect("postgres"); err != nil {
+		log.Fatal("❌ Ошибка диалекта goose:", err)
+	}
+
+	log.Println("Run migrations...")
+	// Запускаем миграции из папки "migrations"
+	// db.DB — это извлечение стандартного *sql.DB из sqlx
+	if err := goose.Up(db.DB, "migrations"); err != nil {
+		log.Fatal("❌ Ошибка миграций:", err)
+	}
+	log.Println("✅ Миграции успешно применены")
 
 	b, err := telebot.NewBot(pref)
 	if err != nil {
