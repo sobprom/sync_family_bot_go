@@ -1,0 +1,89 @@
+name: Build and Deploy Bot
+
+on:
+  push:
+    branches: [ "master" ]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: bots
+          POSTGRES_USER: bot
+          POSTGRES_PASSWORD: bot
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: true
+
+      - name: Install dependencies
+        run: go mod download
+
+      - name: Install Goose for migrations
+        run: go install github.com/pressly/goose/v3/cmd/goose@latest
+
+      - name: Install Jet for code generation
+        run: go install github.com/go-jet/jet/v2/cmd/jet@latest
+
+      - name: Run database migrations
+        run: make migrate-up
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: Generate Jet models
+        run: make gen-db
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: Run tests
+        run: go test -v ./...
+        env:
+          DB_URL: postgresql://bot:bot@localhost:5432/bots?sslmode=disable
+
+      - name: Build binary
+        run: go build -o bot main.go
+        env:
+          CGO_ENABLED: 0
+          GOOS: linux
+          GOARCH: amd64
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}:latest
+            ghcr.io/${{ github.repository }}:${{ github.sha }}
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Deploy to Railway
+        run: railway redeploy --service=78efabda-5a40-435c-88be-a5faa6302def --yes
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}

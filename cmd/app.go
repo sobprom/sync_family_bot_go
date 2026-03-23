@@ -2,7 +2,9 @@ package cmd
 
 import (
 	"log"
-	"sync_family_bot_go/handlers"
+	"strings"
+	"sync_family_bot_go/internal/domain"
+	"sync_family_bot_go/internal/handlers"
 	"time"
 
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
@@ -15,9 +17,10 @@ import (
 
 // App хранит все зависимости нашего бота
 type App struct {
-	Config *Config
-	Bot    *telebot.Bot
-	DB     *sqlx.DB
+	Config         *Config
+	Bot            *telebot.Bot
+	DB             *sqlx.DB
+	messageHandler handlers.MessageHandler
 }
 
 // NewApp — это "конструктор". Он собирает всё воедино.
@@ -55,14 +58,27 @@ func NewApp(cfg *Config) *App {
 
 	log.Printf("🤖 Бот авторизован как: %s (ID: %d)", b.Me.Username, b.Me.ID)
 
-	return &App{
-		Config: cfg,
-		Bot:    b,
-		DB:     db,
+	messageHandler := handlers.NewMessageHandler(db)
+
+	app := &App{
+		Config:         cfg,
+		Bot:            b,
+		DB:             db,
+		messageHandler: messageHandler,
 	}
+
+	app.registerHandlers()
+
+	return app
 }
 
-func (a *App) RegisterHandlers() {
+// Start запускает бесконечный цикл бота
+func (a *App) Start() {
+	log.Println("🚀 Бот на Go успешно запущен!")
+	a.Bot.Start()
+}
+
+func (a *App) registerHandlers() {
 
 	a.Bot.Use(func(next telebot.HandlerFunc) telebot.HandlerFunc {
 		return func(c telebot.Context) error {
@@ -71,20 +87,50 @@ func (a *App) RegisterHandlers() {
 		}
 	})
 
-	// 1. Команды (явная регистрация)
-	a.Bot.Handle("/start", handlers.HandleCommand)
-	a.Bot.Handle("/help", handlers.HandleCommand)
+	// ЕДИНСТВЕННЫЙ обработчик для всего текста
+	a.Bot.Handle(telebot.OnText, func(ctx telebot.Context) error {
+		text := ctx.Text()
+		chatID := ctx.Chat().ID
 
-	// 2. Обычный текст (все, что не команда)
-	a.Bot.Handle(telebot.OnText, handlers.HandleText)
+		// Получаем команду через твою модель
+		command := domain.GetCommand(text)
+
+		log.Printf("📨 Chat %d: команда %v, текст: %s", chatID, command, text)
+
+		// Твой switch из Java
+		switch command {
+		case domain.CommandStart:
+			// Обычный /start
+			log.Printf("🤖 Команда: %s", command)
+
+			return a.messageHandler.HandleStart(ctx)
+
+		case domain.CommandStartWithInvite:
+			// /start с инвайтом - извлекаем код
+			inviteCode := text[7:] // после "/start "
+			log.Printf("🤖 Команда: %s", command)
+			return a.messageHandler.HandleStartWithInvite(ctx, inviteCode)
+
+		case domain.CommandCreateFamily:
+			// /create_family
+			log.Printf("🤖 Команда: %s", command)
+			return a.messageHandler.HandleCreateFamily(ctx)
+
+		case domain.CommandUnknown:
+			// Если начинается с /, но неизвестная команда
+			if strings.HasPrefix(text, "/") {
+				return ctx.Send("❌ Неизвестная команда. Доступные: /start, /create_family")
+			}
+			// Обычный текст
+			return a.messageHandler.HandleText(ctx)
+		}
+
+		log.Println("✅ Обработчики бота зарегистрированы")
+
+		return nil
+	})
 
 	// 3. Кнопки (Inline кнопки)
-	a.Bot.Handle(telebot.OnCallback, handlers.HandleCallback)
+	a.Bot.Handle(telebot.OnCallback, a.messageHandler.HandleCallback)
 
-}
-
-// Start запускает бесконечный цикл бота
-func (a *App) Start() {
-	log.Println("🚀 Бот на Go успешно запущен!")
-	a.Bot.Start()
 }
