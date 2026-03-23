@@ -52,8 +52,21 @@ jobs:
         env:
           DATABASE_URL: "postgres://bot:bot@localhost:5432/bots_go?sslmode=disable"
 
+      - name: Verify generated models
+        run: |
+          echo "Checking generated models..."
+          if [ ! -d "internal/gen/bots_go/family_sync" ]; then
+            echo "❌ Generated models not found!"
+            exit 1
+          fi
+          echo "✅ Models generated successfully"
+
       - name: Build binary
-        run: go build -o bot main.go
+        run: |
+          # Проверяем go.mod и go.sum
+          go mod verify
+          # Собираем с подробным выводом
+          go build -v -o bot main.go
         env:
           CGO_ENABLED: 0
           GOOS: linux
