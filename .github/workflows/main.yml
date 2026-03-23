@@ -45,12 +45,12 @@ jobs:
       - name: Run database migrations
         run: make migrate-up
         env:
-          DATABASE_URL: "postgres://bot:bot@localhost:5432/bots?sslmode=disable&search_path=family_sync"
+          DATABASE_URL: "postgres://bot:bot@localhost:5432/bots?sslmode=disable"
 
       - name: Generate Jet models
         run: make gen-db
         env:
-          DATABASE_URL: "postgres://bot:bot@localhost:5432/bots?sslmode=disable&search_path=family_sync"
+          DATABASE_URL: "postgres://bot:bot@localhost:5432/bots?sslmode=disable"
 
       - name: Build binary
         run: go build -o bot main.go
