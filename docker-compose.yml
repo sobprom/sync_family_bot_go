@@ -6,14 +6,24 @@ services:
     container_name: family_sync_db
     restart: always
     environment:
-      POSTGRES_USER: bot
-      POSTGRES_PASSWORD: bot
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: bots_go
+      POSTGRES_SHARED_BUFFERS: "128MB"
+      POSTGRES_EFFECTIVE_CACHE_SIZE: "256MB"
+      POSTGRES_WORK_MEM: "8MB"
+      POSTGRES_MAINTENANCE_WORK_MEM: "64MB"
     ports:
-      - "5433:5432"
+      - "5432:5432"
     volumes:
-      # Монтируем данные во внутреннюю папку контейнера
       - pgdata:/var/lib/postgresql/data
+    # Жесткое ограничение памяти контейнера
+    deploy:
+      resources:
+        limits:
+          memory: 384M   # PostgreSQL не получит больше 384 МБ
+        reservations:
+          memory: 256M
 
 volumes:
   pgdata:
