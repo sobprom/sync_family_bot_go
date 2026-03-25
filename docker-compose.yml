@@ -1,6 +1,12 @@
-version: '3.8'
-
 services:
+  bot:
+    image: ghcr.io/sobprom/sync_family_bot_go:latest
+    environment:
+      - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/bots_go?sslmode=disable&search_path=family_sync
+    restart: always
+    env_file: .env
+    depends_on:
+      - db
   db:
     image: postgres:16-alpine
     container_name: family_sync_db
@@ -9,21 +15,30 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: bots_go
-      POSTGRES_SHARED_BUFFERS: "128MB"
-      POSTGRES_EFFECTIVE_CACHE_SIZE: "256MB"
-      POSTGRES_WORK_MEM: "8MB"
-      POSTGRES_MAINTENANCE_WORK_MEM: "64MB"
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
-    # Жесткое ограничение памяти контейнера
     deploy:
       resources:
         limits:
-          memory: 384M   # PostgreSQL не получит больше 384 МБ
+          memory: 200M
         reservations:
-          memory: 256M
+          memory: 100M
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d bots_go" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: >
+      postgres
+      -c shared_buffers=48MB
+      -c effective_cache_size=128MB
+      -c work_mem=4MB
+      -c maintenance_work_mem=32MB
+      -c max_connections=15
+      -c min_wal_size=32MB
+      -c max_wal_size=128MB
 
 volumes:
   pgdata:
