@@ -39,6 +39,11 @@ func NewApp(cfg *Config) *App {
 
 	// 2. Настройка Goose (аналог Flyway)
 	// Устанавливаем диалект
+	log.Println("🛠 Проверка и создание схемы family_sync...")
+	_, err = db.Exec("CREATE SCHEMA IF NOT EXISTS family_sync;")
+	if err != nil {
+		log.Fatal("❌ Не удалось создать схему:", err)
+	}
 	if err := goose.SetDialect("postgres"); err != nil {
 		log.Fatal("❌ Ошибка диалекта goose:", err)
 	}
