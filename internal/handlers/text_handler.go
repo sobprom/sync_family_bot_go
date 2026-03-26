@@ -6,6 +6,8 @@ import (
 	"sync_family_bot_go/internal/gen/bots_go/family_sync/model"
 	"sync_family_bot_go/internal/repository"
 	"sync_family_bot_go/internal/service"
+	"unicode"
+	"unicode/utf8"
 
 	"gopkg.in/telebot.v3"
 )
@@ -49,7 +51,7 @@ func (h *TextHandlerImpl) HandleText(c telebot.Context) error {
 
 	// 3. Рассылаем обновления всей семье
 	header := fmt.Sprintf("🛒 %s обновил(а) список покупок:", user.Username)
-	go h.notification.NotifyFamilyUpdate(c, familyID, header)
+	go h.notification.NotifyFamilyNewMessage(c, familyID, header)
 
 	return nil
 }
@@ -69,7 +71,8 @@ func (h *TextHandlerImpl) getOrCreateUser(chatID int64, firstName string) (*mode
 // processInput решает: обновить существующий продукт или распарсить список новых
 func (h *TextHandlerImpl) processInput(user *model.Users, text string) error {
 	if user.EditingProductID != nil {
-		updated, err := h.productRepo.UpdateProductName(*user.EditingProductID, text)
+		formattedText := capitalize(text)
+		updated, err := h.productRepo.UpdateProductName(*user.EditingProductID, formattedText)
 		if err == nil && updated {
 			return h.familyRepo.DropEditingProductId(user.ChatID)
 		}
@@ -81,4 +84,12 @@ func (h *TextHandlerImpl) processInput(user *model.Users, text string) error {
 		return h.productRepo.AddProducts(*user.FamilyID, products)
 	}
 	return nil
+}
+
+func capitalize(s string) string {
+	if s == "" {
+		return ""
+	}
+	r, size := utf8.DecodeRuneInString(s)
+	return string(unicode.ToUpper(r)) + s[size:]
 }

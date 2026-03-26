@@ -7,7 +7,7 @@ type FamilyRepository interface {
 	GetFamilyMembersByFamilyId(familyID int64) ([]model.Users, error)
 	CreateFamilyMember(chatID int64, userName string) (*model.Users, error)
 	DropEditingProductId(chatID int64) error
-	DropShoppingEditMode(chatID int64) error
+	DropShoppingEditMode(chatID int64) (*model.Users, error)
 	UpdateLastMessageIds(users []model.Users) error
 	JoinFamily(chatID int64, code string, userName string) (*model.Users, error)
 	GetFamilyCode(familyID int64) (string, error)
