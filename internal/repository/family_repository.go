@@ -186,19 +186,22 @@ func (repo *FamilyRepositoryImpl) GetFamilyCode(familyID int64) (string, error) 
 	return family.InviteCode, nil
 }
 
-func (repo *FamilyRepositoryImpl) DropShoppingEditMode(chatID int64) error {
+func (repo *FamilyRepositoryImpl) DropShoppingEditMode(chatID int64) (*model.Users, error) {
 	updateStmt := table.Users.UPDATE(table.Users.ShoppingListEditMode).
 		SET(postgres.Bool(false)).
-		WHERE(table.Users.ChatID.EQ(postgres.Int(chatID)))
+		WHERE(table.Users.ChatID.EQ(postgres.Int(chatID))).
+		RETURNING(table.Users.AllColumns)
+
+	var updatedUser model.Users
 
 	// Выполняем запрос
-	_, err := updateStmt.Exec(repo.db)
+	err := updateStmt.Query(repo.db, &updatedUser)
 	if err != nil {
 		log.Printf("failed to drop shopping edit mode for chat %d: %v", chatID, err)
-		return err
+		return nil, err
 	}
 
-	return nil
+	return &updatedUser, nil
 }
 
 func (repo *FamilyRepositoryImpl) ToggleShoppingEditMode(chatID int64) (*model.Users, error) {

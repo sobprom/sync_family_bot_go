@@ -5,7 +5,6 @@ import (
 	"log"
 	"strconv"
 	"sync_family_bot_go/internal/domain"
-	"sync_family_bot_go/internal/gen/bots_go/family_sync/model"
 	"sync_family_bot_go/internal/repository"
 	"sync_family_bot_go/internal/service"
 
@@ -300,7 +299,6 @@ func (r *CallbackHandlerImpl) handleConfirmClear(c telebot.Context) error {
 
 func (r *CallbackHandlerImpl) handleRefresh(c telebot.Context) error {
 	chatID := c.Chat().ID
-	currentMsg := c.Message()
 
 	// Достаем пользователя и список продуктов
 	user, err := r.familyRepo.GetFamilyMemberByChatId(chatID)
@@ -310,40 +308,12 @@ func (r *CallbackHandlerImpl) handleRefresh(c telebot.Context) error {
 	}
 
 	// Сбрасываем режим редактирования
-	err = r.familyRepo.DropShoppingEditMode(chatID)
+	user, err = r.familyRepo.DropShoppingEditMode(chatID)
 	if err != nil {
 		return err
 	}
 
-	products, err := r.productRepo.GetAllProductsOrdered(*user.FamilyID)
-	if err != nil {
-		return err
-	}
-
-	// 2. Формируем обновление сообщения (аналог EditMessageText)
-	// В telebot метод Edit заменяет текст и клавиатуру
-	newText := "🛒 *Актуальный список покупок:*"
-	newKeyboard := r.uiService.CreateShoppingListKeyboard(products, false)
-
-	sent, err := c.Bot().Send(c.Chat(), newText, &telebot.SendOptions{
-		ParseMode:   telebot.ModeMarkdown,
-		ReplyMarkup: newKeyboard,
-	})
-	if err != nil {
-		return err
-	}
-
-	_ = c.Bot().Delete(currentMsg)
-
-	if user.LastMessageID != nil && int(*user.LastMessageID) != currentMsg.ID {
-		_ = c.Bot().Delete(&telebot.Message{
-			ID:   int(*user.LastMessageID),
-			Chat: c.Chat(),
-		})
-	}
-
-	user.LastMessageID = new(int64(sent.ID))
-	_ = r.familyRepo.UpdateLastMessageIds([]model.Users{*user})
+	go r.notification.NotifyUserUpdate(c, user, "🛒 *Актуальный список покупок:*")
 
 	// 3. Подтверждаем callback, чтобы "часики" на кнопке исчезли
 	return c.Respond()
@@ -368,7 +338,7 @@ func (r *CallbackHandlerImpl) handleEdit(c telebot.Context) error {
 	// 3. Обновляем сообщение (текст и клавиатуру)
 	text := "🛒 *Режим редактирования:*"
 
-	kb := r.uiService.CreateShoppingListKeyboard(products, true)
+	kb := r.uiService.CreateShoppingListKeyboard(products, updatedUser.ShoppingListEditMode)
 
 	err = c.Edit(text, kb, telebot.ModeMarkdown)
 	if err != nil {
