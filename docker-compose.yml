@@ -1,6 +1,8 @@
 services:
   bot:
     image: ghcr.io/sobprom/sync_family_bot_go:latest
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
     environment:
       - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/bots_go?sslmode=disable&search_path=family_sync
     restart: always
@@ -40,5 +42,14 @@ services:
       -c min_wal_size=32MB
       -c max_wal_size=128MB
 
+  watchtower:
+    image: containrrr/watchtower
+    container_name: watchtower
+    restart: always
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - DOCKER_API_VERSION=1.54  # Принудительно использовать API 1.54
+    command: --interval 60 --cleanup --label-enable
 volumes:
   pgdata:
