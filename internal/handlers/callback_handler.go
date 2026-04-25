@@ -285,7 +285,7 @@ func (r *CallbackHandlerImpl) handleConfirmClear(c telebot.Context) error {
 	selector.Inline(
 		selector.Row(btnConfirm, btnCancel),
 	)
-	warningText := "⚠️ *Вы уверены, что хотите полностью очистить список покупок?*"
+	warningText := "⚠️ *Удалить все купленные товары?*"
 
 	err := c.Edit(warningText, selector, telebot.ModeMarkdown)
 	if err != nil {

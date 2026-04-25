@@ -77,7 +77,8 @@ func (repo *ProductRepositoryImpl) GetAllProductsOrdered(familyId int64) ([]mode
 func (repo *ProductRepositoryImpl) DeleteAllByFamilyId(familyID int64) error {
 
 	stmt := table.ShoppingList.DELETE().
-		WHERE(table.ShoppingList.FamilyID.EQ(postgres.Int(familyID)))
+		WHERE(table.ShoppingList.FamilyID.EQ(postgres.Int(familyID)).
+			AND(table.ShoppingList.IsBought.IS_TRUE()))
 
 	_, err := stmt.Exec(repo.db)
 	if err != nil {

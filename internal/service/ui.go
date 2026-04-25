@@ -23,10 +23,13 @@ func (s *UIService) CreateShoppingListKeyboard(products []model.ShoppingList, ed
 		return s.createEditListKeyboard(products)
 	}
 
+	hasBoughtItems := false
+
 	for _, p := range products {
 		label := p.ProductName
 		if p.IsBought {
 			label = "✅ " + label
+			hasBoughtItems = true
 		}
 
 		btn := selector.Data(label, string(domain.Buy), fmt.Sprintf("%d", p.ID))
@@ -35,10 +38,13 @@ func (s *UIService) CreateShoppingListKeyboard(products []model.ShoppingList, ed
 
 	if len(products) > 0 {
 		btnEdit := selector.Data("⚙ Редактировать список", string(domain.ToggleModeEdit))
-		btnFinish := selector.Data("🏁 Завершить покупки", string(domain.ConfirmClear))
-
 		rows = append(rows, selector.Row(btnEdit))
-		rows = append(rows, selector.Row(btnFinish))
+
+		if hasBoughtItems {
+			btnFinish := selector.Data("🗑 Удалить купленные", string(domain.ConfirmClear))
+			rows = append(rows, selector.Row(btnFinish))
+		}
+
 	}
 
 	selector.Inline(rows...)
